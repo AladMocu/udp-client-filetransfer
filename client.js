@@ -11,22 +11,35 @@ var screen = blessed.screen({
 var client = dgram.createSocket('udp4');
 let sv = "localhost:3000"
 
-/*
-{
+
 
 const ws = new WebSocket(`ws://${sv}`);
 
 // WEB INTERACTIONS
 ws.on('open',function open(){
-	print('Conectado')
+	box.content = "{center}Conexion Exitosa!{/center}"
+    box.style.bg = "green"
+	print('Conectado');
+	screen.render();
 })
+
 ws.on('message',function incoming(data){
 	print('Se recibio: '+ data);
-	jdata=  JSON.parse(data);
+	var jdata=  JSON.parse(data);
 	if (jdata.type==="greet")
 	{
-		archivos = jdata.files
-		loadFiles();
+		if(jdata.content)
+		{
+			for(let i=0;i<jdata.content.length;i++)
+			{
+				t= jdata.content[i]
+				archivos.push(`${t.name}\t ${t.size}Mb`)
+			}
+			loadFiles();
+			filesUI.append(submit)
+			screen.render();
+		}
+		
 	}
 	else if (jdata.type==="error")
 	{
@@ -35,7 +48,9 @@ ws.on('message',function incoming(data){
 	else if (jdata.type==="count")
 	{
 		uscount = jdata.content
+		
 		updateUsers(uscount)
+		screen.render();
 	}
 })
 ws.on('close', function close() {
@@ -46,7 +61,7 @@ client.on('message', function (message, remote) {
     wstream.end();
 });
 
-}*/
+
 
 
 screen.title = 'UDP Client';
@@ -136,6 +151,7 @@ function loadFiles() {
     }
 }
 
+
 function updateUsers(uCount) {
     ucount.content = `Usuarios Activos: ${uCount}`
 }
@@ -187,22 +203,8 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 
 // Render the screen.
 
-
+screen.append(ucount)
 //PRUEBAS SIN SERVIDOR
-screen.key('p', function(ch, key) {
-    //conexion realizada
-	filesUI.append(submit)
-    box.content = "{center}Conexion Exitosa!{/center}"
-    box.style.bg = "green"
-    screen.append(ucount)
-    archivos = ["archivo A 100 MB", "archivo B 200 MB"]
-    
-    updateUsers(1);
-	screen.focused=radioset
-	loadFiles()
-    screen.render();
-
-});
 alert = blessed.message({
 	left: 'center',
 	top: 'center',
@@ -246,7 +248,7 @@ function download(file){
 	askUsersUI.input("¿Para cuantos usuarios desea descargar?",'1',(err,users)=>
 	{
 		req ={
-			archivo: file,
+			archivo: file.split("\t")[0],
 			usuarios: users
 		};
 		//askUsersUI.hidden=true;
