@@ -1,6 +1,8 @@
 const WebSocket = require("ws");
 const fs = require("fs");
 const pathM = require('path');
+var dgram = require('dgram');
+var server = dgram.createSocket('udp4');
 
 const { exec } = require("child_process");
 
@@ -9,6 +11,7 @@ const logs=pathM.resolve("./logs");
 const clients = [];
 const files=[];
 const queue=[];
+
 
 
 // check for os and junk file generation
@@ -39,7 +42,7 @@ else
 
   const wss = new WebSocket.Server({ port:3000 });
 
-  wss.on("connection", (ws,req) => 
+  wss.on("connection", (ws,req,client) => 
   {
     clients.push({socket:ws,IP:req.socket.remoteAddress});
     greet(ws);
@@ -55,13 +58,28 @@ else
 
     ws.on("message", (message) =>
     {
-      const {name,users} = JSON.parse(message);      
-      fs.exists((path+"/"+name),(ans)=>
+      let msg = JSON.parse(message);
+      if(msg.type  === "connection")
       {
-          if(!ans) return ws.send(JSON.stringify({type:"error",content:`File ${name} doesn´t exist`}));
-          queue.push({name:name,users:users});
-          checkQueue();
-      });
+        for(let i=0;i<clients.length;i++)
+        {
+          if(ws==clients[i].socket)
+          {
+            clients[i].UDPport = msg.port
+          }
+        }
+      }
+      else if(msg.type  === "request")
+      {
+          
+        fs.exists((path+"/"+msg.name),(ans)=>
+        {
+            if(!ans) return ws.send(JSON.stringify({type:"error",content:`File ${msg.name} doesn´t exist`}));
+            queue.push({name:msg.name,users:msg.users});
+            checkQueue();
+        });
+      }
+      
     });
   });
   const currentUsers=()=>{
@@ -117,7 +135,8 @@ else
             console.log("Error");
             return;
         }
-        const encodedData = new Buffer(data,"binary").toString('base64');
+        const encodedData = new Buffer.from(data,"binary").toString('base64');
+        const chunkdata = encodedData.match(/.{1,65000}/g)
         const hashedData =hashCode(encodedData);
         const toLog=[];
         clients.forEach((client) => 
@@ -127,16 +146,33 @@ else
             clientInfo.IP=client.IP;
             clientInfo.recibio=false;
             clientInfo.perdio=false;
+            udpip=client.IP.split(":")[3]
             process.users-=1;
             const initSend=Date.now();
-            try
-            {
-              client.socket.send(JSON.stringify({type:"file",content:{name:process.name,data:encodedData,type:pathM.extname(path+"/"+process.name),validation:hashedData}}));  
-              clientInfo.recibio=true;
-            }
-            catch (error) 
-            {
+            try {
+              client.socket.send(JSON.stringify({type:"file",content:{name:process.name,/*data:encodedData,*/type:pathM.extname(path+"/"+process.name),validation:hashedData}}));  
+            } catch (error) {
+              console.log(error)
               clientInfo.perdio=true;
+            }
+            for(let i = 0;i< chunkdata.length;i++)
+            {
+              try
+              {
+                server.send(chunkdata[i],0,chunkdata[i].length,client.UDPport,udpip,(err,bytes)=>{
+                  console.log('UDP to ' + udpip +':'+ client.UDPport);
+                  if (err) 
+                      throw err;
+              
+                  console.log('File size: ' + chunkdata[i].length);
+                })
+                clientInfo.recibio=true;
+              }
+              catch (error) 
+              {
+                console.log(error)
+                clientInfo.perdio=true;
+              }
             }
             const endSend=Date.now();
             clientInfo.diftime=endSend-initSend;

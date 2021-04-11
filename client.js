@@ -1,19 +1,48 @@
 var blessed = require('blessed');
+var atob = require('atob');
 const dgram = require('dgram');
+const fs = require('fs');
 const WebSocket = require('ws');
-
+const { timeStamp } = require('console');
+let mp=""
 let archivos = []
 let uscount = 1 ;
 var screen = blessed.screen({
     smartCSR: true
 });
-
-var client = dgram.createSocket('udp4');
 let sv = "localhost:3000"
-
-
-
 const ws = new WebSocket(`ws://${sv}`);
+var client = dgram.createSocket('udp4');
+wlog="";
+client.bind(0,'localhost');
+
+client.on('listening',()=>{
+    client.setBroadcast(true);
+    var add = client.address()
+    mp=add.port
+    uname.content += `\n{center}puerto: ${add.port}{/center}`
+
+    req ={
+        type: "connection",
+        port: mp,
+    };
+    //askUsersUI.hidden=true;
+    //print(JSON.stringify(req))
+    screen.render();
+    ws.addEventListener('open',function(event){
+        ws.send(JSON.stringify(req))
+    })
+    
+});
+
+
+let dfile;
+client.on('message',function(message,remote){
+    print("nar"+dfile)
+    fs.appendFileSync(dfile,atob(message+""))
+})
+
+
 
 // WEB INTERACTIONS
 ws.on('open',function open(){
@@ -44,6 +73,7 @@ ws.on('message',function incoming(data){
 	else if (jdata.type==="error")
 	{
 		print(jdata.content)
+        screen.render();
 	}
 	else if (jdata.type==="count")
 	{
@@ -52,17 +82,18 @@ ws.on('message',function incoming(data){
 		updateUsers(uscount)
 		screen.render();
 	}
+    else if(jdata.type==="file")
+    {
+        dfile =`./receivedFiles/${(jdata.content.name.split(".")[0])}-${mp}${(jdata.content.name.split(".")[1])}`
+        hash = jdata.content.validation;
+    }
 })
 ws.on('close', function close() {
+    box.content = "{center}Desconectado del Servidor{/center}"
+    box.style.bg = "red"
 	print('Desconectado');
+    screen.render();
 });
-client.on('message', function (message, remote) {
-    wstream.write(message);
-    wstream.end();
-});
-
-
-
 
 screen.title = 'UDP Client';
 conectionStatus = `{center}Conectando a {bold} ${sv}{/bold}! {/center}`
@@ -114,7 +145,8 @@ var ucount = blessed.box({
 });
 var filesUI = blessed.form({
     top: "12%",
-    bottom: 10,
+    bottom: 2,
+    width: "70%",
     parent: screen,
     mouse: false,
     keys: true,
@@ -125,9 +157,10 @@ var filesUI = blessed.form({
 });
 var logUI = blessed.box({
     parent: screen,
-    bottom: 0,
-    right: 0,
-    height: " 10%",
+    top: "12%",
+    bottom: 2,
+    left:"70%",
+    width: "30%",
     content: "",
     border: {
         type: 'line'
@@ -248,17 +281,19 @@ function download(file){
 	askUsersUI.input("¿Para cuantos usuarios desea descargar?",'1',(err,users)=>
 	{
 		req ={
-			archivo: file.split("\t")[0],
-			usuarios: users
+            type: "request",
+			"name": file.split("\t")[0],
+			"users": users
 		};
 		//askUsersUI.hidden=true;
 		print(JSON.stringify(req))
 		screen.render();
-		//ws.send(JSON.stringify(req))
+		ws.send(JSON.stringify(req))
 	});
 	screen.render();
 }
 screen.render();
 function print(log){
-	logUI.content = log+"";
+	logUI.content +="\n"+log;
+    screen.render()
 }
