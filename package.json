@@ -6,6 +6,7 @@
   "dependencies": {
     "atob": "^2.1.2",
     "blessed": "^0.1.81",
+    "dequeue": "^1.0.5",
     "dgram": "^1.0.1",
     "ws": "^7.4.4"
   },

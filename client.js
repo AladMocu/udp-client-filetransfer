@@ -4,6 +4,10 @@ const dgram = require('dgram');
 const fs = require('fs');
 const WebSocket = require('ws');
 const { timeStamp } = require('console');
+var dequeue = require('dequeue');
+var FIFO = new dequeue()
+
+
 let mp=""
 let archivos = []
 let uscount = 1 ;
@@ -14,9 +18,17 @@ let sv = "localhost:3000"
 const ws = new WebSocket(`ws://${sv}`);
 var client = dgram.createSocket('udp4');
 wlog="";
+
 client.bind(0,'localhost');
 
+
 client.on('listening',()=>{
+
+
+    client.setRecvBufferSize(1000000000); 
+    client.setSendBufferSize(1000000000); 
+
+
     client.setBroadcast(true);
     var add = client.address()
     mp=add.port
@@ -26,8 +38,6 @@ client.on('listening',()=>{
         type: "connection",
         port: mp,
     };
-    //askUsersUI.hidden=true;
-    //print(JSON.stringify(req))
     screen.render();
     ws.addEventListener('open',function(event){
         ws.send(JSON.stringify(req))
@@ -36,13 +46,22 @@ client.on('listening',()=>{
 });
 
 
-let dfile;
+
+fetcher();
+
+
 client.on('message',function(message,remote){
-    print("nar"+dfile)
-    fs.appendFileSync(dfile,atob(message+""))
+    FIFO.push(message);
+    
 })
-
-
+function fetcher () {
+    while (FIFO.length > 0) 
+    {
+        var msg = FIFO.shift();
+        fs.appendFileSync(dfile,atob(msg+""))
+    }
+    setImmediate(fetcher); 
+}
 
 // WEB INTERACTIONS
 ws.on('open',function open(){
@@ -61,7 +80,7 @@ ws.on('message',function incoming(data){
 		{
 			for(let i=0;i<jdata.content.length;i++)
 			{
-				t= jdata.content[i]
+				t = jdata.content[i]
 				archivos.push(`${t.name}\t ${t.size}Mb`)
 			}
 			loadFiles();
@@ -84,7 +103,7 @@ ws.on('message',function incoming(data){
 	}
     else if(jdata.type==="file")
     {
-        dfile =`./receivedFiles/${(jdata.content.name.split(".")[0])}-${mp}${(jdata.content.name.split(".")[1])}`
+        dfile =`./receivedFiles/${(jdata.content.name.split(".")[0])}-${mp}.${(jdata.content.name.split(".")[1])}`
         hash = jdata.content.validation;
     }
 })
@@ -297,3 +316,11 @@ function print(log){
 	logUI.content +="\n"+log;
     screen.render()
 }
+
+process.on('exit',()=>{
+    req={
+        type: "bye"
+    }
+    ws.send(JSON.stringify(req))
+    ws.close()
+})

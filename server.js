@@ -14,6 +14,7 @@ const queue=[];
 
 
 
+
 // check for os and junk file generation
 if(process.platform==="win32")
 {
@@ -40,6 +41,7 @@ else
     }
 }
 
+
   const wss = new WebSocket.Server({ port:3000 });
 
   wss.on("connection", (ws,req,client) => 
@@ -47,12 +49,13 @@ else
     clients.push({socket:ws,IP:req.socket.remoteAddress});
     greet(ws);
     currentUsers();
-    checkQueue();
+    
     
     ws.on("close",()=>
     {
       let client2Remove = clients.filter(c=>c.socket!==ws)[0];
       clients.splice(clients.indexOf(client2Remove),1);
+      
       currentUsers();
     });
 
@@ -66,6 +69,19 @@ else
           if(ws==clients[i].socket)
           {
             clients[i].UDPport = msg.port
+            checkQueue();
+          }
+        }
+      }
+      if(msg.type  === "bye")
+      {
+        for(let i=0;i<clients.length;i++)
+        {
+          if(ws==clients[i].socket)
+          {
+           // clients.re clients[i]
+            clients.splice(i,1)
+            currentUsers();
           }
         }
       }
@@ -159,13 +175,14 @@ else
             {
               try
               {
+                
                 server.send(chunkdata[i],0,chunkdata[i].length,client.UDPport,udpip,(err,bytes)=>{
                   console.log('UDP to ' + udpip +':'+ client.UDPport);
                   if (err) 
                       throw err;
-              
                   console.log('File size: ' + chunkdata[i].length);
                 })
+                
                 clientInfo.recibio=true;
               }
               catch (error) 
@@ -177,6 +194,7 @@ else
             const endSend=Date.now();
             clientInfo.diftime=endSend-initSend;
             toLog.push(clientInfo);
+            console.log('Sended: ' + chunkdata.length + ' packages');
         });
         logger(toLog);
     });
