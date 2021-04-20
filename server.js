@@ -7,7 +7,7 @@ var server = dgram.createSocket('udp4');
 const { exec } = require("child_process");
 
 const path = pathM.resolve("./files");
-const logs=pathM.resolve("./logs");
+const logs=pathM.resolve("./logs/server");
 const clients = [];
 const files=[];
 const queue=[];
@@ -53,7 +53,7 @@ else
     
     ws.on("close",()=>
     {
-      let client2Remove = clients.filter(c=>c.socket!==ws)[0];
+      let client2Remove = clients.filter(c=>c.socket===ws)[0];
       clients.splice(clients.indexOf(client2Remove),1);
       
       currentUsers();
@@ -151,6 +151,8 @@ else
             console.log("Error");
             return;
         }
+        let filesize = (fs.statSync(path+"/"+process.name).size);
+
         const encodedData = new Buffer.from(data,"binary").toString('base64');
         const chunkdata = encodedData.match(/.{1,65000}/g)
         const hashedData =hashCode(encodedData);
@@ -165,9 +167,12 @@ else
             udpip=client.IP.split(":")[3]
             process.users-=1;
             const initSend=Date.now();
-            try {
-              client.socket.send(JSON.stringify({type:"file",content:{name:process.name,/*data:encodedData,*/type:pathM.extname(path+"/"+process.name),validation:hashedData}}));  
-            } catch (error) {
+            try 
+            {
+              client.socket.send(JSON.stringify({type:"file",content:{name:process.name,/*data:encodedData,*/type:pathM.extname(path+"/"+process.name),validation:hashedData,size:filesize}}));  
+            }
+            catch (error) 
+            {
               console.log(error)
               clientInfo.perdio=true;
             }

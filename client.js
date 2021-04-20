@@ -4,8 +4,10 @@ const dgram = require('dgram');
 const fs = require('fs');
 const WebSocket = require('ws');
 const { timeStamp } = require('console');
+const pathM = require('path');
 var dequeue = require('dequeue');
 var FIFO = new dequeue()
+const logs=pathM.resolve("./logs/client");
 
 
 let mp=""
@@ -18,6 +20,12 @@ let sv = "localhost:3000"
 const ws = new WebSocket(`ws://${sv}`);
 var client = dgram.createSocket('udp4');
 wlog="";
+let dfile="";
+let hashServer=0;
+let fileSize=0
+let currentFile="";
+let activateTimer=false;
+let initSend=0;
 
 client.bind(0,'localhost');
 
@@ -49,16 +57,73 @@ client.on('listening',()=>{
 
 fetcher();
 
+function hashCode(info)
+{
+    var hash=0;
+    for(var i =0;i<info.length;i++)
+    {
+      var character = info.charCodeAt(i);
+      hash = ((hash<<5)-hash)+character;
+      hash = hash & hash;
+    }
+    return hash;
+}
+
+const logger=(newLog)=>{
+    const dateLog=new Date();
+    const fileName=`${logs}\\${dateLog.getFullYear()}-${dateLog.getMonth()}-${dateLog.getDay()}-${dateLog.getMinutes()}-${dateLog.getSeconds()}-log.txt`;
+    fs.writeFile(fileName,JSON.stringify(newLog),(err)=>{
+      if(err)
+      {
+          return;
+      }
+    });
+};
 
 client.on('message',function(message,remote){
     FIFO.push(message);
     
-})
+});
+
 function fetcher () {
-    while (FIFO.length > 0) 
+    if(activateTimer)
+    {
+        initSend=Date.now();
+        activateTimer=false;
+    }
+    while (FIFO.length > 0)     
     {
         var msg = FIFO.shift();
-        fs.appendFileSync(dfile,atob(msg+""))
+        fs.appendFileSync(dfile,atob(msg+""));
+        var currentSize = (fs.statSync(currentFile).size);
+        if(currentSize>=fileSize)
+        {
+            const endSend=Date.now();
+            const diftime=endSend-initSend;
+            if(currentFile!=="")
+            {
+                fs.readFile(currentFile,(err,data)=>{
+                    if(err)
+                    {
+                        console.log(err)
+                        console.log(dfile);
+                    }
+                    else
+                    {
+                        var encodedData = new Buffer.from(data,"binary").toString('base64');
+                        var hashedData =hashCode(encodedData);
+                        var good=hashedData===hashServer;
+                        let log={
+                            file:currentFile,
+                            correct:good,
+                            time:diftime,
+                            size: currentSize
+                        };
+                        logger(log);
+                    }
+                });
+            }
+        }
     }
     setImmediate(fetcher); 
 }
@@ -104,7 +169,10 @@ ws.on('message',function incoming(data){
     else if(jdata.type==="file")
     {
         dfile =`./receivedFiles/${(jdata.content.name.split(".")[0])}-${mp}.${(jdata.content.name.split(".")[1])}`
-        hash = jdata.content.validation;
+        currentFile=dfile;
+        hashServer = jdata.content.validation;
+        fileSize=jdata.content.size;
+        activateTimer=true;
     }
 })
 ws.on('close', function close() {
@@ -187,8 +255,7 @@ var logUI = blessed.box({
 });
 var radioset = blessed.radioset({
 	parent: filesUI,
-  });
-
+});
 function loadFiles() {
     for (let i = 0; i < archivos.length; i++) {
         let r = blessed.radiobutton({
@@ -202,8 +269,6 @@ function loadFiles() {
         })
     }
 }
-
-
 function updateUsers(uCount) {
     ucount.content = `Usuarios Activos: ${uCount}`
 }
@@ -235,13 +300,10 @@ var submit = blessed.button({
 		  }
     },
 });
-
-
 submit.on('press', function() {
 
     filesUI.submit();
 });
-
 filesUI.on('submit', function(data) {
 	let ind =-((JSON.stringify(data.files).match(/,/g)||[]).length)+archivos.length-1
 	print("Se solicito el archivo:" + archivos[ind]);
