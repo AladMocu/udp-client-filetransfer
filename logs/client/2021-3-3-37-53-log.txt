@@ -1,0 +1,1 @@
+{"file":"./receivedFiles/junk100mb-63967.dat","correct":true,"time":11124,"size":104857600}
